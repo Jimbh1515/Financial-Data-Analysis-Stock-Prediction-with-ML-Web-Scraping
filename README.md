@@ -41,7 +41,7 @@ The app's Python modules live in `src/`: `data.py` (yfinance access), `features.
 
 ## Deploying to Render
 
-No local Python install needed — Render builds and runs the app entirely in the cloud from this repo. A `render.yaml` blueprint is included at the repo root, pinned to Render's **free** instance plan (`plan: free`) so no payment method should be required to deploy.
+No local Python install needed — Render builds and runs the app entirely in the cloud from this repo. A `render.yaml` blueprint is included at the repo root, pinned to Render's **free** instance plan (`plan: free`) so no payment method should be required to deploy. It also pins the Python version to **3.11.9** (via `PYTHON_VERSION` in `render.yaml` and a `runtime.txt` fallback) — this repo's pinned package versions (`pandas`, `torch`, etc.) have prebuilt wheels for Python 3.11, so pip installs them directly instead of compiling from source. Without this pin, Render may default to a newer Python for which some of these packages have no prebuilt wheel, forcing a source compile that's prone to failing on the free tier's limited CPU.
 
 **Option A — Blueprint (one click, uses `render.yaml`):**
 
@@ -60,7 +60,8 @@ No local Python install needed — Render builds and runs the app entirely in th
 3. Instance Type: **Free**.
 4. Build Command: `pip install -r requirements.txt`
 5. Start Command: `streamlit run app.py --server.port=$PORT --server.address=0.0.0.0 --server.headless=true`
-6. Deploy.
+6. Under **Environment** → **Environment Variables**, add `PYTHON_VERSION` = `3.11.9` (see note above on why this matters).
+7. Deploy.
 
 ### Things to check once it's live (I could not verify these myself — no Render account access from this session)
 
