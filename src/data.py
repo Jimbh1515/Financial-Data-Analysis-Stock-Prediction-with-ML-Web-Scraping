@@ -39,6 +39,12 @@ def fetch_history(ticker: str, period: str = "3y", interval: str = "1d") -> pd.D
     if not ticker:
         raise DataUnavailableError("No ticker symbol provided.")
 
+    df = None
+    fetch_errors = []
+
+    # yf.download() and Ticker.history() go through slightly different code
+    # paths internally and have, in practice, failed independently of each
+    # other when Yahoo's undocumented API changes — try both before giving up.
     try:
         df = yf.download(
             ticker,
@@ -49,12 +55,21 @@ def fetch_history(ticker: str, period: str = "3y", interval: str = "1d") -> pd.D
             threads=False,
         )
     except Exception as exc:  # network / yfinance errors
-        raise DataUnavailableError(f"Could not fetch data for '{ticker}': {exc}") from exc
+        fetch_errors.append(f"download(): {exc}")
+        df = None
 
     if df is None or df.empty:
+        try:
+            df = yf.Ticker(ticker).history(period=period, interval=interval, auto_adjust=False)
+        except Exception as exc:
+            fetch_errors.append(f"Ticker.history(): {exc}")
+            df = None
+
+    if df is None or df.empty:
+        detail = f" ({'; '.join(fetch_errors)})" if fetch_errors else ""
         raise DataUnavailableError(
             f"No data returned for '{ticker}'. Check the symbol is correct "
-            "(e.g. 'AAPL', 'RELIANCE.NS', 'TCS.NS')."
+            f"(e.g. 'AAPL', 'RELIANCE.NS', 'TCS.NS'){detail}"
         )
 
     if isinstance(df.columns, pd.MultiIndex):
