@@ -41,7 +41,7 @@ The app's Python modules live in `src/`: `data.py` (yfinance access), `features.
 
 ## Deploying to Render
 
-No local Python install needed — Render builds and runs the app entirely in the cloud from this repo. A `render.yaml` blueprint is included at the repo root.
+No local Python install needed — Render builds and runs the app entirely in the cloud from this repo. A `render.yaml` blueprint is included at the repo root, pinned to Render's **free** instance plan (`plan: free`) so no payment method should be required to deploy.
 
 **Option A — Blueprint (one click, uses `render.yaml`):**
 
@@ -57,13 +57,14 @@ No local Python install needed — Render builds and runs the app entirely in th
 
 1. **New +** → **Web Service** → connect this repo/branch.
 2. Environment: **Python 3**.
-3. Build Command: `pip install -r requirements.txt`
-4. Start Command: `streamlit run app.py --server.port=$PORT --server.address=0.0.0.0 --server.headless=true`
-5. Deploy.
+3. Instance Type: **Free**.
+4. Build Command: `pip install -r requirements.txt`
+5. Start Command: `streamlit run app.py --server.port=$PORT --server.address=0.0.0.0 --server.headless=true`
+6. Deploy.
 
 ### Things to check once it's live (I could not verify these myself — no Render account access from this session)
 
-- **Instance size / RAM:** this app installs `torch` + `transformers` for the sentiment tab, which is a meaningfully heavier footprint than a typical Streamlit app. I don't have a verified, current figure for Render's free/starter tier RAM limits — please check Render's pricing page directly. If the News Sentiment tab crashes the service (out-of-memory) on a small instance, that's the likely cause; either move to a larger instance, or ask me to swap the transformer model for a lighter sentiment method (e.g. VADER) to reduce memory usage.
+- **Instance size / RAM on the free tier:** this app installs `torch` + `transformers` for the sentiment tab, which is a meaningfully heavier footprint than a typical Streamlit app, and the free tier is deliberately kept on the smaller side. I don't have a verified, current figure for Render's free-tier RAM limit — please check Render's pricing page directly. **If the app crashes or restarts specifically when the News Sentiment tab is opened, that's almost certainly an out-of-memory kill on the free instance.** The rest of the app (Forecast, Risk, Legacy tabs) doesn't load torch/transformers and should be unaffected either way. If this happens, come back and we can swap the sentiment model for a lightweight lexicon-based method (e.g. VADER, no model download) that fits free-tier RAM comfortably — no need to pay for a bigger instance just for this one tab.
 - **Cold starts / sleep:** on lower tiers, Render may spin the service down after inactivity, so the first request after idle can be slow. Confirm current behavior on Render's site for the plan you pick.
 - **Model re-download on restart:** the sentiment model (~500MB) downloads from HuggingFace the first time the News Sentiment tab is used after each deploy/restart, since Render's default filesystem isn't guaranteed to persist across deploys. This just means the first click of that tab after a restart will be slow, not that anything is broken.
 - **Outbound network:** confirm Render's egress allows Yahoo Finance, LiveMint, and HuggingFace — normal Render services have unrestricted outbound HTTPS, but worth a quick smoke test after deploy.
