@@ -7,6 +7,7 @@ It now includes an **interactive Streamlit platform** (`app.py`) that ties all o
 ## Table of Contents
 
 - [Interactive Platform](#interactive-platform)
+- [Deploying to Render](#deploying-to-render)
 - [Original Notebooks & Scripts](#original-notebooks--scripts)
 - [Installation](#installation)
 - [Usage](#usage)
@@ -37,6 +38,35 @@ The app's Python modules live in `src/`: `data.py` (yfinance access), `features.
 **Network note:** the platform needs outbound HTTPS access to Yahoo Finance (via `yfinance`), `livemint.com` (news scraping), and `huggingface.co` (to download the sentiment model on first use, ~500MB). If any of these are unreachable from your network, the corresponding tab will show an error but the rest of the app still works.
 
 **Disclaimer:** the forecast is a statistical projection from historical patterns using a small set of technical features — it is not investment advice, and the risk assessment reproduces a simplified educational heuristic from the original notebook, not a rigorous financial model.
+
+## Deploying to Render
+
+No local Python install needed — Render builds and runs the app entirely in the cloud from this repo. A `render.yaml` blueprint is included at the repo root.
+
+**Option A — Blueprint (one click, uses `render.yaml`):**
+
+1. Push/merge this branch so `render.yaml` is on the branch you want deployed.
+2. In the [Render dashboard](https://dashboard.render.com/), click **New +** → **Blueprint**.
+3. Connect this GitHub repo and select the branch (`claude/financial-prediction-platform-7fj295`, or `main` once merged).
+4. Render reads `render.yaml` and provisions a **Web Service** automatically:
+   - Build command: `pip install -r requirements.txt`
+   - Start command: `streamlit run app.py --server.port=$PORT --server.address=0.0.0.0 --server.headless=true`
+5. Click **Apply** / **Create**. First deploy will take a while — `torch` + `transformers` are large installs.
+
+**Option B — Manual Web Service (no blueprint):**
+
+1. **New +** → **Web Service** → connect this repo/branch.
+2. Environment: **Python 3**.
+3. Build Command: `pip install -r requirements.txt`
+4. Start Command: `streamlit run app.py --server.port=$PORT --server.address=0.0.0.0 --server.headless=true`
+5. Deploy.
+
+### Things to check once it's live (I could not verify these myself — no Render account access from this session)
+
+- **Instance size / RAM:** this app installs `torch` + `transformers` for the sentiment tab, which is a meaningfully heavier footprint than a typical Streamlit app. I don't have a verified, current figure for Render's free/starter tier RAM limits — please check Render's pricing page directly. If the News Sentiment tab crashes the service (out-of-memory) on a small instance, that's the likely cause; either move to a larger instance, or ask me to swap the transformer model for a lighter sentiment method (e.g. VADER) to reduce memory usage.
+- **Cold starts / sleep:** on lower tiers, Render may spin the service down after inactivity, so the first request after idle can be slow. Confirm current behavior on Render's site for the plan you pick.
+- **Model re-download on restart:** the sentiment model (~500MB) downloads from HuggingFace the first time the News Sentiment tab is used after each deploy/restart, since Render's default filesystem isn't guaranteed to persist across deploys. This just means the first click of that tab after a restart will be slow, not that anything is broken.
+- **Outbound network:** confirm Render's egress allows Yahoo Finance, LiveMint, and HuggingFace — normal Render services have unrestricted outbound HTTPS, but worth a quick smoke test after deploy.
 
 ## Original Notebooks & Scripts
 
