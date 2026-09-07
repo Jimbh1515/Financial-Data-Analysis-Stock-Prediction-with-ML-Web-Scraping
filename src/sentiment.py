@@ -1,12 +1,18 @@
 """LiveMint news scraping + sentiment analysis.
 
-A refactor of `Stock Analysis.py` into reusable, cached functions: the
-scraping and sentiment-classification logic is unchanged (same selectors,
-same `cardiffnlp/twitter-roberta-base-sentiment` model, same headline
-pre-processing), but it's wrapped so the Streamlit app can call it safely —
-LiveMint's markup or availability can change at any time, and the transformer
-model is a genuine multi-hundred-MB download on first use, so every failure
-mode here degrades gracefully instead of crashing the app.
+The scraping logic (selectors, headline extraction) is a direct refactor of
+`Stock Analysis.py` into reusable, cached functions. The sentiment
+*classifier* is intentionally different from that script's: `Stock
+Analysis.py` uses the `cardiffnlp/twitter-roberta-base-sentiment` transformer
+model (torch + transformers, a ~500MB download, meaningful RAM at inference
+time). This platform is meant to run on free-tier hosting (e.g. Render's free
+web service instance), where that footprint caused out-of-memory restarts —
+so this module uses VADER instead: a small, self-contained lexicon/rule-based
+sentiment scorer (no model download, negligible memory). It's less nuanced
+than a transformer model but fits comfortably in a constrained environment.
+The original transformer-based script is untouched in `Stock Analysis.py` if
+you want to run that approach directly (needs `transformers`/`torch`
+installed separately — no longer in requirements.txt).
 """
 
 from __future__ import annotations
@@ -18,9 +24,10 @@ import streamlit as st
 from bs4 import BeautifulSoup
 
 LIVEMINT_URL = "https://www.livemint.com/market"
-MODEL_NAME = "cardiffnlp/twitter-roberta-base-sentiment"
 LABELS = ["Negative", "Neutral", "Positive"]
 REQUEST_TIMEOUT = 10
+POSITIVE_THRESHOLD = 0.05
+NEGATIVE_THRESHOLD = -0.05
 
 
 @dataclass
@@ -29,17 +36,6 @@ class SentimentItem:
     source: str  # "headline" or "market_news"
     label: str
     score: float
-
-
-def _preprocess(text: str) -> str:
-    words = []
-    for word in text.split(" "):
-        if word.startswith("@") and len(word) > 1:
-            word = "@user"
-        elif word.startswith("http"):
-            word = "http"
-        words.append(word)
-    return " ".join(words)
 
 
 @st.cache_data(ttl=60 * 15, show_spinner=False)
@@ -80,22 +76,23 @@ def scrape_livemint_news() -> tuple[list[str], list[str]]:
 
 @st.cache_resource(show_spinner=False)
 def _load_sentiment_model():
-    from transformers import AutoModelForSequenceClassification, AutoTokenizer
+    from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 
-    tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
-    model = AutoModelForSequenceClassification.from_pretrained(MODEL_NAME)
-    return tokenizer, model
+    return SentimentIntensityAnalyzer()
 
 
 def classify_sentiment(text: str) -> tuple[str, float]:
-    from scipy.special import softmax
+    analyzer = _load_sentiment_model()
+    compound = analyzer.polarity_scores(text)["compound"]
 
-    tokenizer, model = _load_sentiment_model()
-    encoded = tokenizer(_preprocess(text), return_tensors="pt", truncation=True)
-    output = model(**encoded)
-    scores = softmax(output[0][0].detach().numpy())
-    idx = scores.argmax()
-    return LABELS[idx], float(scores[idx])
+    if compound >= POSITIVE_THRESHOLD:
+        label = "Positive"
+    elif compound <= NEGATIVE_THRESHOLD:
+        label = "Negative"
+    else:
+        label = "Neutral"
+
+    return label, float(abs(compound))
 
 
 def analyze_market_sentiment() -> list[SentimentItem]:

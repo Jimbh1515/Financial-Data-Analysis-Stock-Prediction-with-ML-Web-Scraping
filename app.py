@@ -113,10 +113,11 @@ def render_forecast_tab(ticker: str, period: str, model_name: str, horizon: int)
 def render_sentiment_tab():
     st.subheader("Live Market News Sentiment")
     st.caption(
-        "Scrapes livemint.com/market headlines and classifies each with the "
-        "cardiffnlp/twitter-roberta-base-sentiment transformer model — same "
-        "source and model as Stock Analysis.py. First run downloads the model "
-        "(~500MB) and may take a while."
+        "Scrapes livemint.com/market headlines (same source as Stock "
+        "Analysis.py) and classifies each with VADER, a lightweight "
+        "lexicon-based sentiment scorer — chosen over Stock Analysis.py's "
+        "transformer model to keep memory usage low enough for free-tier "
+        "hosting. No model download required."
     )
 
     if not st.button("Fetch latest news & analyze sentiment", type="primary"):
@@ -239,8 +240,12 @@ def render_legacy_tab():
             "BeautifulSoup and classifies each with the "
             "`cardiffnlp/twitter-roberta-base-sentiment` transformer model, "
             "printing labels and scores. This platform's News Sentiment tab "
-            "runs the same scraping + model live and visualizes the results "
-            "(`src/sentiment.py`), rather than only printing to console."
+            "reuses the same scraping logic live (`src/sentiment.py`) and "
+            "visualizes the results, but swaps the transformer model for "
+            "VADER, a lightweight lexicon-based classifier — the transformer "
+            "model's memory footprint caused out-of-memory crashes on "
+            "free-tier hosting, so this platform trades some classification "
+            "nuance for reliability there."
         )
 
 
